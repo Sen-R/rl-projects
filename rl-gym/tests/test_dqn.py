@@ -7,6 +7,8 @@ from rlgym.dqn import (
     mlp_q_network,
     select_action_epsilon_greedily,
     EpsilonSchedule,
+    Experience,
+    QAgentInEnvironment,
 )
 
 
@@ -108,3 +110,39 @@ class TestEpsilonSchedule:
         self, epsilon: EpsilonSchedule, step: int, expected: float
     ) -> None:
         assert_almost_equal(epsilon(step), expected)
+
+
+def test_experience() -> None:
+    e = Experience("obs", 3, 1.0, "new_obs", False)
+    assert e.obs == "obs"
+    assert e.action == 3
+    assert e.reward == 1.0
+    assert e.next_obs == "new_obs"
+    assert e.terminated is False
+
+
+@pytest.fixture
+def agent(env: gym.Env, Q: tf.keras.Model) -> QAgentInEnvironment:
+    return QAgentInEnvironment(env, Q)
+
+
+class TestQAgentInEnvironment:
+    def test_select_action(self, agent: QAgentInEnvironment) -> None:
+        action_values = agent.Q(agent._obs[np.newaxis, :]).numpy().squeeze()
+        best_action = np.argmax(action_values)
+        chosen_action = agent.select_action(epsilon=0.0)
+        assert chosen_action == best_action
+
+    def test_collect_experience(self, agent: QAgentInEnvironment) -> None:
+        exp = agent.collect_experience(epsilon=0.1)
+        assert isinstance(exp, Experience)
+        assert agent._episode_step == 1
+        assert agent._episode_reward == exp.reward
+
+    @pytest.mark.xfail
+    def test_td_target(self, agent: QAgentInEnvironment) -> None:
+        raise NotImplementedError
+
+    @pytest.mark.xfail
+    def test_learn(self, agent: QAgentInEnvironment) -> None:
+        raise NotImplementedError

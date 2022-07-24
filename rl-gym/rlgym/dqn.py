@@ -1,4 +1,5 @@
 import typing
+from collections import namedtuple
 import gym
 import numpy as np
 import numpy.typing as npt
@@ -73,23 +74,13 @@ class QLearningAgent:
 
 
 class TrainingProgress:
-    def __init__(self) -> None:
-        self._this_episode_reward = 0.0
-        self._this_episode_step = 0
-
     def on_epoch_begin(self) -> None:
         self._episode_rewards_this_epoch: typing.List[float] = []
         self._episode_lengths_this_epoch: typing.List[int] = []
 
-    def on_step_end(self, reward: float) -> None:
-        self._this_episode_reward += reward
-        self._this_episode_step += 1
-
-    def on_environment_reset(self) -> None:
-        self._episode_rewards_this_epoch.append(self._this_episode_reward)
-        self._episode_lengths_this_epoch.append(self._this_episode_step)
-        self._this_episode_reward = 0.0
-        self._this_episode_step = 0
+    def on_episode_end(self, episode_length: int, total_reward: float) -> None:
+        self._episode_rewards_this_epoch.append(total_reward)
+        self._episode_lengths_this_epoch.append(episode_length)
 
     def get_epoch_stats(self) -> typing.Dict[str, typing.Union[int, float]]:
         return {
@@ -112,61 +103,102 @@ class TrainingProgress:
         )
 
 
-def q_learn(
-    env: gym.Env,
-    q_network: tf.Module,
-    epochs: int,
-    steps_per_epoch: int,
-    epsilon: typing.Callable[[int], float],
-    gamma: float,
-) -> None:
-    optimizer = tf.keras.optimizers.Adam()
-    obs = env.reset()
-    assert isinstance(obs, np.ndarray)
-    history = TrainingProgress()
-    total_step = 0
+Experience = namedtuple(
+    "Experience", ["obs", "action", "reward", "next_obs", "terminated"]
+)
 
-    for epoch in range(epochs):
-        history.on_epoch_begin()
 
-        with trange(steps_per_epoch, ascii=" =") as step_iter:
-            step_iter.set_description(f"Epoch {epoch:2d}/{epochs:2d}")
-            for step in step_iter:
-                step_iter.set_postfix(epsilon=epsilon(total_step))
-                with tf.GradientTape() as tape:
-                    action_values = tf.squeeze(q_network(obs[np.newaxis, :]))
-                    action = select_action_epsilon_greedily(
-                        action_values.numpy(), epsilon(total_step)
-                    ).squeeze()
-                    next_obs, reward, terminated, truncated, _ = env.step(
-                        action
-                    )  # type: ignore
-                    if terminated:
-                        td_target = reward
-                    else:
-                        td_target = (
-                            reward
-                            + gamma
-                            + tf.stop_gradient(
-                                tf.reduce_max(
-                                    q_network(next_obs[np.newaxis, :])
-                                )
-                            )
+class QAgentInEnvironment:
+    def __init__(self, env: gym.Env, Q: tf.keras.Model):
+        self.env = env
+        self.Q = Q
+        self.history = TrainingProgress()
+        self.reset_env()
+
+    def reset_env(self) -> None:
+        self._obs: npt.NDArray = self.env.reset()  # type: ignore
+        self._episode_step = 0
+        self._episode_reward = 0.0
+
+    def select_action(self, epsilon: float) -> int:
+        # TODO: deal with observations of other shapes (e.g. 2/3D)
+        action_values = tf.squeeze(self.Q(self._obs.reshape([1, -1]))).numpy()
+        action = select_action_epsilon_greedily(action_values, epsilon)
+        return int(action)
+
+    def collect_experience(self, epsilon: float) -> Experience:
+        action = self.select_action(epsilon)
+        next_obs, reward, terminated, truncated, _ = self.env.step(
+            action
+        )  # type: ignore
+        exp = Experience(self._obs, action, reward, next_obs, terminated)
+
+        self._episode_step += 1
+        self._episode_reward += reward
+
+        if terminated or truncated:
+            self.history.on_episode_end(
+                self._episode_step, self._episode_reward
+            )
+            self.reset_env()
+        else:
+            self._obs = next_obs
+
+        return exp
+
+    def _td_target(
+        self,
+        reward: float,
+        next_obs: npt.NDArray,
+        terminated: bool,
+        gamma: float,
+    ) -> typing.Union[npt.NDArray[np.float64], float]:
+        if terminated:
+            td_target = reward
+        else:
+            td_target = reward + gamma * np.max(
+                self.Q(next_obs.reshape([1, -1])).numpy()
+            )
+        return td_target
+
+    def learn(
+        self,
+        epochs: int,
+        steps_per_epoch: int,
+        epsilon_schedule: typing.Callable[[int], float],
+        gamma: float,
+    ) -> None:
+        optimizer = tf.keras.optimizers.Adam()
+        total_step = 0
+
+        for epoch in range(epochs):
+            self.history.on_epoch_begin()
+
+            with trange(steps_per_epoch, ascii=" =") as step_iter:
+                step_iter.set_description(f"Epoch {epoch:2d}/{epochs:2d}")
+                for step in step_iter:
+                    epsilon = epsilon_schedule(total_step)
+                    step_iter.set_postfix(epsilon=epsilon)
+                    experience = self.collect_experience(epsilon)
+                    total_step += 1
+
+                    obs, action, reward, next_obs, truncated = experience
+                    td_target = self._td_target(
+                        reward, next_obs, truncated, gamma
+                    )
+
+                    with tf.GradientTape() as tape:
+                        q_est = tf.gather(
+                            self.Q(self._obs.reshape([1, -1])),
+                            [action],
+                            axis=1,
+                            batch_dims=1,
                         )
-                    loss = tf.square(td_target - action_values[action])
+                        loss = tf.square(td_target - q_est)
 
-                grads = tape.gradient(loss, q_network.trainable_weights)
-                optimizer.apply_gradients(
-                    zip(grads, q_network.trainable_weights)
-                )
+                    grads = tape.gradient(loss, self.Q.trainable_weights)
+                    optimizer.apply_gradients(
+                        zip(grads, self.Q.trainable_weights)
+                    )
 
-                history.on_step_end(reward=reward)
-                total_step += 1
-
-                if terminated or truncated:
-                    next_obs = env.reset()
-                    history.on_environment_reset()
-
-                obs = next_obs
-
-        print(history.epoch_stats_string() + "\n")
+            print(self.history.epoch_stats_string() + "\n")

@@ -4,7 +4,11 @@ import click
 import gym
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # suppress tf noise on stderr
-from rlgym.dqn import mlp_q_network, q_learn, EpsilonSchedule  # noqa: E402
+from rlgym.dqn import (  # noqa: E402
+    mlp_q_network,
+    QAgentInEnvironment,
+    EpsilonSchedule,
+)
 
 
 @click.command()
@@ -43,7 +47,8 @@ def train(
     Q = mlp_q_network(env, hidden_layers_list)
     Q.summary()
     print()
-    q_learn(env, Q, epochs, steps_per_epoch, EpsilonSchedule(*epsilon), gamma)
+    agent = QAgentInEnvironment(env, Q)
+    agent.learn(epochs, steps_per_epoch, EpsilonSchedule(*epsilon), gamma)
 
 
 def _parse_hidden_layers(hidden_layers: str) -> typing.List[int]:
