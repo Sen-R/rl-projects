@@ -20,10 +20,19 @@ from rlgym.dqn import (  # noqa: E402
     default="",
     help="Comma separated list of hidden layer sizes.",
 )
-@click.argument("epochs", type=int)
-@click.argument("steps_per_epoch", type=int)
-@click.argument("batch_size", type=int)
-@click.argument("memory_size", type=int)
+@click.option("--epochs", type=int, required=True, help="Number of epochs.")
+@click.option(
+    "--steps-per-epoch",
+    type=int,
+    required=True,
+    help="Training steps per epoch.",
+)
+@click.option(
+    "--batch-size", type=int, required=True, help="DQN training batch size."
+)
+@click.option(
+    "--memory-size", type=int, required=True, help="Replay buffer capacity."
+)
 @click.option(
     "--epsilon",
     type=(float, int, float),
