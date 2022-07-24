@@ -1,3 +1,4 @@
+import typing
 import pytest
 from numpy.testing import assert_array_equal, assert_almost_equal
 import numpy as np
@@ -9,6 +10,7 @@ from rlgym.dqn import (
     EpsilonSchedule,
     Experience,
     ReplayBuffer,
+    soft_update,
     QAgentInEnvironment,
 )
 
@@ -25,9 +27,13 @@ def sample_obs(env: gym.Env) -> np.ndarray:
     return sample_obs[np.newaxis, :]
 
 
+def Q_builder(env: gym.Env) -> typing.Callable[[], tf.keras.Model]:
+    return mlp_q_network(env, [3, 4])
+
+
 @pytest.fixture
 def Q(env: gym.Env) -> tf.keras.Model:
-    return mlp_q_network(env, [3, 4])
+    return Q_builder(env)
 
 
 class TestMLPQNetwork:
@@ -184,12 +190,42 @@ class TestReplayBuffer:
             buf.sample(2)
 
 
+@pytest.mark.parametrize(
+    "alpha,expected", [(0.0, 0.5), (1.0, 1.5), (0.2, 0.7)]
+)
+def test_soft_update(alpha: float, expected: float) -> None:
+    # Prepare trivial (single-parameter) target and online networks
+    # with prespecified weights
+    target = tf.keras.Sequential(
+        tf.keras.layers.Dense(1, use_bias=False, input_shape=(1,))
+    )
+    target.set_weights([np.array([[0.5]])])
+
+    online = tf.keras.Sequential(
+        tf.keras.layers.Dense(1, use_bias=False, input_shape=(1,))
+    )
+    online.set_weights([np.array([[1.5]])])
+
+    # Perform soft-update with alpha and check online is unchanged and
+    # target changes correctly
+    soft_update(target, online, alpha)
+    assert_almost_equal(online.get_weights()[0], 1.5)
+    assert_almost_equal(target.get_weights()[0], expected)
+
+
 @pytest.fixture
-def agent(env: gym.Env, Q: tf.keras.Model) -> QAgentInEnvironment:
-    return QAgentInEnvironment(env, Q, 10)
+def agent(env: gym.Env) -> QAgentInEnvironment:
+    return QAgentInEnvironment(env, lambda: Q_builder(env), 10)
 
 
 class TestQAgentInEnvironment:
+    def test_initial_state(self, agent: QAgentInEnvironment) -> None:
+        assert len(agent.memory) == 0
+        for w_t, w_o in zip(
+            agent.Q_target.get_weights(), agent.Q.get_weights()
+        ):
+            assert_array_equal(w_t, w_o)
+
     def test_select_action(self, agent: QAgentInEnvironment) -> None:
         action_values = agent.Q(agent._obs[np.newaxis, :]).numpy().squeeze()
         best_action = np.argmax(action_values)

@@ -4,6 +4,7 @@ import click
 import gym
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # suppress tf noise on stderr
+import tensorflow as tf  # noqa: E402
 from rlgym.dqn import (  # noqa: E402
     mlp_q_network,
     QAgentInEnvironment,
@@ -48,10 +49,15 @@ def train(
     render_mode = "human" if render else None
     env = gym.make(env_name, new_step_api=True, render_mode=render_mode)
     hidden_layers_list = _parse_hidden_layers(hidden_layers)
-    Q = mlp_q_network(env, hidden_layers_list)
-    Q.summary()
+
+    def Q_builder() -> tf.keras.Model:
+        return mlp_q_network(env, hidden_layers_list)
+
+    Q_builder().summary()
     print()
-    agent = QAgentInEnvironment(env, Q, memory_size)
+
+    tf.keras.backend.clear_session()  # clear up memory before training
+    agent = QAgentInEnvironment(env, Q_builder, memory_size)
     agent.learn(
         EpsilonSchedule(*epsilon), gamma, epochs, steps_per_epoch, batch_size
     )

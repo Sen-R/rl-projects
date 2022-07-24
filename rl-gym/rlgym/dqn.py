@@ -184,12 +184,38 @@ def _td_target(
     return reward + gamma * (~terminated) * np.max(Q(next_obs), axis=1)
 
 
+def soft_update(
+    target: tf.keras.Model, online: tf.keras.Model, alpha: float
+) -> None:
+    """Soft updates a target network's weights towards online network weights.
+
+    `alpha` is the smoothing parameter. Zero corresponds to no update, one
+    corresponds to completely replacing the original weights.
+    """
+    new_weights = [
+        alpha * w_o + (1.0 - alpha) * w_t
+        for w_o, w_t in zip(online.get_weights(), target.get_weights())
+    ]
+    target.set_weights(new_weights)
+
+
 class QAgentInEnvironment:
-    def __init__(self, env: gym.Env, Q: tf.keras.Model, memory_size: int):
+    def __init__(
+        self,
+        env: gym.Env,
+        Q_builder: typing.Callable[[], tf.keras.Model],
+        memory_size: int,
+        target_update_alpha: float = 0.1,
+    ):
         self.env = env
-        self.Q = Q
+        self.Q = Q_builder()
+        self.Q_target = Q_builder()
         self.history = TrainingProgress()
         self.memory = ReplayBuffer(maxlen=memory_size)
+        self.alpha = target_update_alpha
+
+        # Fully update Q_target to begin with (alpha=1.0)
+        soft_update(target=self.Q_target, online=self.Q, alpha=1.0)
         self.reset_env()
 
     def reset_env(self) -> None:
@@ -224,15 +250,25 @@ class QAgentInEnvironment:
             self._obs = next_obs
 
     def train_step(self, gamma: float, batch_size: int) -> None:
+        # Sample batch of experience
         obs, action, reward, next_obs, truncated = self.memory.sample(
             batch_size
         )
-        td_target = _td_target(self.Q, reward, next_obs, truncated, gamma)
+
+        # Calculate TD error (squared) and its gradient wrt Q weights
+        td_target = _td_target(
+            self.Q_target, reward, next_obs, truncated, gamma
+        )
         with tf.GradientTape() as tape:
             q_est = tf.gather(self.Q(obs), action, axis=1, batch_dims=1)
             loss = tf.reduce_sum(tf.square(td_target - q_est))
         grads = tape.gradient(loss, self.Q.trainable_weights)
+
+        # Update online network using SGD
         self.optimizer.apply_gradients(zip(grads, self.Q.trainable_weights))
+
+        # Update target network using soft update
+        soft_update(target=self.Q_target, online=self.Q, alpha=self.alpha)
 
     def learn(
         self,
