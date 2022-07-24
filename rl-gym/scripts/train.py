@@ -31,6 +31,12 @@ from rlgym.dqn import (  # noqa: E402
     help="Epsilon schedule in format `start_val, rampdown_length, end_val`.",
 )
 @click.option("--gamma", type=float, default=1.0, help="Discount rate.")
+@click.option(
+    "--target-update-alpha",
+    type=float,
+    default=0.1,
+    help="Soft update parameter for updating target Q network.",
+)
 @click.option("--render/--no-render", help="View environment during training.")
 def train(
     env_name: str,
@@ -41,6 +47,7 @@ def train(
     memory_size: int,
     epsilon: typing.Tuple[float, int, float],
     gamma: float,
+    target_update_alpha: float,
     render: bool,
 ):
     """Train a linear policy using vanilla Q-learning for the given
@@ -57,7 +64,9 @@ def train(
     print()
 
     tf.keras.backend.clear_session()  # clear up memory before training
-    agent = QAgentInEnvironment(env, Q_builder, memory_size)
+    agent = QAgentInEnvironment(
+        env, Q_builder, memory_size, target_update_alpha
+    )
     agent.learn(
         EpsilonSchedule(*epsilon), gamma, epochs, steps_per_epoch, batch_size
     )
