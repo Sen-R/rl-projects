@@ -175,13 +175,18 @@ class ReplayBuffer:
 
 
 def _td_target(
-    Q: typing.Callable[[npt.NDArray], npt.NDArray],
+    Q_target: typing.Callable[[npt.NDArray], npt.NDArray],
+    Q_online: typing.Callable[[npt.NDArray], npt.NDArray],
     reward: npt.NDArray[np.float64],
     next_obs: npt.NDArray,
     terminated: npt.NDArray[np.bool_],
     gamma: float,
 ) -> npt.NDArray[np.float64]:
-    return reward + gamma * (~terminated) * np.max(Q(next_obs), axis=1)
+    greedy_next_action = np.argmax(Q_online(next_obs), axis=1, keepdims=True)
+    next_action_value = np.take_along_axis(
+        Q_target(next_obs).numpy(), greedy_next_action, axis=1
+    )
+    return reward + gamma * (~terminated) * next_action_value
 
 
 def soft_update(
@@ -257,7 +262,7 @@ class QAgentInEnvironment:
 
         # Calculate TD error (squared) and its gradient wrt Q weights
         td_target = _td_target(
-            self.Q_target, reward, next_obs, terminated, gamma
+            self.Q_target, self.Q, reward, next_obs, terminated, gamma
         )
         with tf.GradientTape() as tape:
             q_est = tf.gather(self.Q(obs), action, axis=1, batch_dims=1)
