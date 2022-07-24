@@ -251,13 +251,13 @@ class QAgentInEnvironment:
 
     def train_step(self, gamma: float, batch_size: int) -> None:
         # Sample batch of experience
-        obs, action, reward, next_obs, truncated = self.memory.sample(
+        obs, action, reward, next_obs, terminated = self.memory.sample(
             batch_size
         )
 
         # Calculate TD error (squared) and its gradient wrt Q weights
         td_target = _td_target(
-            self.Q_target, reward, next_obs, truncated, gamma
+            self.Q_target, reward, next_obs, terminated, gamma
         )
         with tf.GradientTape() as tape:
             q_est = tf.gather(self.Q(obs), action, axis=1, batch_dims=1)
