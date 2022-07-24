@@ -175,8 +175,8 @@ class ReplayBuffer:
 
 
 def _td_target(
-    Q_target: typing.Callable[[npt.NDArray], npt.NDArray],
-    Q_online: typing.Callable[[npt.NDArray], npt.NDArray],
+    Q_target: typing.Callable[[npt.NDArray], tf.Tensor],
+    Q_online: typing.Callable[[npt.NDArray], tf.Tensor],
     reward: npt.NDArray[np.float64],
     next_obs: npt.NDArray,
     terminated: npt.NDArray[np.bool_],
