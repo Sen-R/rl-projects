@@ -164,6 +164,20 @@ class QAgentInEnvironment:
             )
         return td_target
 
+    def train_step(self, experience: Experience, gamma: float) -> None:
+        obs, action, reward, next_obs, truncated = experience
+        td_target = self._td_target(reward, next_obs, truncated, gamma)
+        with tf.GradientTape() as tape:
+            q_est = tf.gather(
+                self.Q(self._obs.reshape([1, -1])),
+                [action],
+                axis=1,
+                batch_dims=1,
+            )
+            loss = tf.reduce_sum(tf.square(td_target - q_est))
+        grads = tape.gradient(loss, self.Q.trainable_weights)
+        self.optimizer.apply_gradients(zip(grads, self.Q.trainable_weights))
+
     def learn(
         self,
         epochs: int,
@@ -171,37 +185,18 @@ class QAgentInEnvironment:
         epsilon_schedule: typing.Callable[[int], float],
         gamma: float,
     ) -> None:
-        optimizer = tf.keras.optimizers.Adam()
+        self.optimizer = tf.keras.optimizers.Adam()
         total_step = 0
 
         for epoch in range(1, epochs + 1):
             self.history.on_epoch_begin()
-
             with trange(steps_per_epoch, ascii=" =") as step_iter:
                 step_iter.set_description(f"Epoch {epoch:2d}/{epochs:2d}")
                 for step in step_iter:
                     epsilon = epsilon_schedule(total_step)
                     step_iter.set_postfix(epsilon=epsilon)
                     experience = self.collect_experience(epsilon)
+                    self.train_step(experience, gamma)
                     total_step += 1
-
-                    obs, action, reward, next_obs, truncated = experience
-                    td_target = self._td_target(
-                        reward, next_obs, truncated, gamma
-                    )
-
-                    with tf.GradientTape() as tape:
-                        q_est = tf.gather(
-                            self.Q(self._obs.reshape([1, -1])),
-                            [action],
-                            axis=1,
-                            batch_dims=1,
-                        )
-                        loss = tf.square(td_target - q_est)
-
-                    grads = tape.gradient(loss, self.Q.trainable_weights)
-                    optimizer.apply_gradients(
-                        zip(grads, self.Q.trainable_weights)
-                    )
 
             print(self.history.epoch_stats_string() + "\n")

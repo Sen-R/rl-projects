@@ -144,5 +144,9 @@ class TestQAgentInEnvironment:
         raise NotImplementedError
 
     @pytest.mark.xfail
+    def test_train_step(self, agent: QAgentInEnvironment) -> None:
+        raise NotImplementedError
+
+    @pytest.mark.xfail
     def test_learn(self, agent: QAgentInEnvironment) -> None:
         raise NotImplementedError
