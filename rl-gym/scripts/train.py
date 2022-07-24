@@ -21,6 +21,8 @@ from rlgym.dqn import (  # noqa: E402
 )
 @click.argument("epochs", type=int)
 @click.argument("steps_per_epoch", type=int)
+@click.argument("batch_size", type=int)
+@click.argument("memory_size", type=int)
 @click.option(
     "--epsilon",
     type=(float, int, float),
@@ -34,6 +36,8 @@ def train(
     hidden_layers: str,
     epochs: int,
     steps_per_epoch: int,
+    batch_size: int,
+    memory_size: int,
     epsilon: typing.Tuple[float, int, float],
     gamma: float,
     render: bool,
@@ -47,8 +51,10 @@ def train(
     Q = mlp_q_network(env, hidden_layers_list)
     Q.summary()
     print()
-    agent = QAgentInEnvironment(env, Q)
-    agent.learn(epochs, steps_per_epoch, EpsilonSchedule(*epsilon), gamma)
+    agent = QAgentInEnvironment(env, Q, memory_size)
+    agent.learn(
+        EpsilonSchedule(*epsilon), gamma, epochs, steps_per_epoch, batch_size
+    )
 
 
 def _parse_hidden_layers(hidden_layers: str) -> typing.List[int]:

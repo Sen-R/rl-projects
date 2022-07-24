@@ -111,11 +111,85 @@ Experience = namedtuple(
 )
 
 
+class ReplayBuffer:
+    def __init__(self, maxlen: int):
+        self._maxlen = maxlen
+        self.size = 0
+        self.cursor = 0
+
+    def add(self, experience: Experience) -> None:
+        if self.size == 0:
+            self._initialize_from_example(experience)
+        else:
+            self._add_another(experience)
+
+        if self.size < self._maxlen:
+            self.size += 1
+        self.cursor = (self.cursor + 1) % self._maxlen
+
+        assert self.size <= self._maxlen
+        assert self.cursor <= self.size
+
+    def sample(self, n: int) -> Experience:
+        indices = np.random.choice(self.size, n, replace=False)
+        return self[indices]
+
+    def __len__(self) -> int:
+        return self.size
+
+    def __getitem__(
+        self, idx: typing.Union[int, npt.NDArray[np.int64]]
+    ) -> Experience:
+        idx = np.array(idx)
+        if (idx < 0).any() or (idx >= self.size).any():
+            raise IndexError(f"Index out of bounds: {idx}")
+        return Experience(
+            self._o[idx],
+            self._a[idx],
+            self._r[idx],
+            self._no[idx],
+            self._t[idx],
+        )
+
+    def _init_one_array(self, el) -> npt.NDArray:
+        return np.repeat([el], self._maxlen, axis=0)
+
+    def _initialize_from_example(self, experience: Experience) -> None:
+        assert self.size == 0  # private method, so can expect this
+        obs, action, reward, next_obs, terminated = experience
+        self._o = self._init_one_array(obs)
+        self._a = self._init_one_array(action)
+        self._r = self._init_one_array(reward)
+        self._no = self._init_one_array(next_obs)
+        self._t = self._init_one_array(terminated)
+
+    def _add_another(self, experience: Experience) -> None:
+        assert self.size > 0
+        obs, action, reward, next_obs, terminated = experience
+
+        self._o[self.cursor] = obs
+        self._a[self.cursor] = action
+        self._r[self.cursor] = reward
+        self._no[self.cursor] = next_obs
+        self._t[self.cursor] = terminated
+
+
+def _td_target(
+    Q: typing.Callable[[npt.NDArray], npt.NDArray],
+    reward: npt.NDArray[np.float64],
+    next_obs: npt.NDArray,
+    terminated: npt.NDArray[np.bool_],
+    gamma: float,
+) -> npt.NDArray[np.float64]:
+    return reward + gamma * (~terminated) * np.max(Q(next_obs), axis=1)
+
+
 class QAgentInEnvironment:
-    def __init__(self, env: gym.Env, Q: tf.keras.Model):
+    def __init__(self, env: gym.Env, Q: tf.keras.Model, memory_size: int):
         self.env = env
         self.Q = Q
         self.history = TrainingProgress()
+        self.memory = ReplayBuffer(maxlen=memory_size)
         self.reset_env()
 
     def reset_env(self) -> None:
@@ -129,12 +203,14 @@ class QAgentInEnvironment:
         action = select_action_epsilon_greedily(action_values, epsilon)
         return int(action)
 
-    def collect_experience(self, epsilon: float) -> Experience:
+    def collect_experience(self, epsilon: float) -> None:
         action = self.select_action(epsilon)
         next_obs, reward, terminated, truncated, _ = self.env.step(
             action
         )  # type: ignore
-        exp = Experience(self._obs, action, reward, next_obs, terminated)
+        self.memory.add(
+            Experience(self._obs, action, reward, next_obs, terminated)
+        )
 
         self._episode_step += 1
         self._episode_reward += reward
@@ -147,43 +223,24 @@ class QAgentInEnvironment:
         else:
             self._obs = next_obs
 
-        return exp
-
-    def _td_target(
-        self,
-        reward: float,
-        next_obs: npt.NDArray,
-        terminated: bool,
-        gamma: float,
-    ) -> typing.Union[npt.NDArray[np.float64], float]:
-        if terminated:
-            td_target = reward
-        else:
-            td_target = reward + gamma * np.max(
-                self.Q(next_obs.reshape([1, -1])).numpy()
-            )
-        return td_target
-
-    def train_step(self, experience: Experience, gamma: float) -> None:
-        obs, action, reward, next_obs, truncated = experience
-        td_target = self._td_target(reward, next_obs, truncated, gamma)
+    def train_step(self, gamma: float, batch_size: int) -> None:
+        obs, action, reward, next_obs, truncated = self.memory.sample(
+            batch_size
+        )
+        td_target = _td_target(self.Q, reward, next_obs, truncated, gamma)
         with tf.GradientTape() as tape:
-            q_est = tf.gather(
-                self.Q(self._obs.reshape([1, -1])),
-                [action],
-                axis=1,
-                batch_dims=1,
-            )
+            q_est = tf.gather(self.Q(obs), action, axis=1, batch_dims=1)
             loss = tf.reduce_sum(tf.square(td_target - q_est))
         grads = tape.gradient(loss, self.Q.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.Q.trainable_weights))
 
     def learn(
         self,
-        epochs: int,
-        steps_per_epoch: int,
         epsilon_schedule: typing.Callable[[int], float],
         gamma: float,
+        epochs: int,
+        steps_per_epoch: int,
+        batch_size: int,
     ) -> None:
         self.optimizer = tf.keras.optimizers.Adam()
         total_step = 0
@@ -195,8 +252,9 @@ class QAgentInEnvironment:
                 for step in step_iter:
                     epsilon = epsilon_schedule(total_step)
                     step_iter.set_postfix(epsilon=epsilon)
-                    experience = self.collect_experience(epsilon)
-                    self.train_step(experience, gamma)
+                    self.collect_experience(epsilon)
                     total_step += 1
+                    if len(self.memory) > batch_size:
+                        self.train_step(gamma, batch_size)
 
             print(self.history.epoch_stats_string() + "\n")
