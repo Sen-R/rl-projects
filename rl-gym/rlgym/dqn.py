@@ -30,7 +30,10 @@ def mlp_q_network(
     if hidden_layers is None:
         hidden_layers = []
     obs_shape, n_actions = _extract_env_obs_and_action_space_sizes(env)
-    all_layers = [tf.keras.layers.Dense(n_units) for n_units in hidden_layers]
+    all_layers = [
+        tf.keras.layers.Dense(n_units, activation="relu")
+        for n_units in hidden_layers
+    ]
     all_layers.append(tf.keras.layers.Dense(n_actions))
     model = tf.keras.Sequential(all_layers)
     model.build(input_shape=[None, *obs_shape])
