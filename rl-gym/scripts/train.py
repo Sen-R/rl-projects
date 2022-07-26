@@ -47,6 +47,11 @@ from rlgym.dqn import (  # noqa: E402
     help="Soft update parameter for updating target Q network.",
 )
 @click.option("--render/--no-render", help="View environment during training.")
+@click.option(
+    "--checkpoint-dir",
+    type=click.Path(exists=True, file_okay=False, writable=True),
+    help="checkpoint directory",
+)
 def train(
     env_name: str,
     hidden_layers: str,
@@ -58,6 +63,7 @@ def train(
     gamma: float,
     target_update_alpha: float,
     render: bool,
+    checkpoint_dir: typing.Optional[os.PathLike] = None,
 ):
     """Train a linear policy using vanilla Q-learning for the given
     environment."""
@@ -74,7 +80,7 @@ def train(
 
     tf.keras.backend.clear_session()  # clear up memory before training
     agent = QAgentInEnvironment(
-        env, Q_builder, memory_size, target_update_alpha
+        env, Q_builder, memory_size, target_update_alpha, checkpoint_dir
     )
     agent.learn(
         EpsilonSchedule(*epsilon), gamma, epochs, steps_per_epoch, batch_size

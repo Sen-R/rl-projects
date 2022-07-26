@@ -1,5 +1,6 @@
 import typing
 import os
+from pathlib import Path
 from collections import namedtuple
 import gym
 import numpy as np
@@ -240,6 +241,7 @@ class QAgentInEnvironment:
         Q_builder: typing.Callable[[], tf.keras.Model],
         memory_size: int,
         target_update_alpha: float = 0.1,
+        checkpoint_dir: typing.Optional[typing.Union[str, os.PathLike]] = None,
     ):
         self.env = env
         self.Q = Q_builder()
@@ -247,10 +249,47 @@ class QAgentInEnvironment:
         self.history = TrainingProgress()
         self.memory = ReplayBuffer(maxlen=memory_size)
         self.alpha = target_update_alpha
+        self.optimizer = tf.keras.optimizers.Adam()
+        self.checkpoint_dir = checkpoint_dir
 
         # Fully update Q_target to begin with (alpha=1.0)
         soft_update(target=self.Q_target, online=self.Q, alpha=1.0)
         self.reset_env()
+
+        # Restore weights if necessary
+        if self.checkpoint_dir is not None:
+            self.buffer_path = Path(self.checkpoint_dir) / "replay_buffer.npz"
+            self._restore_model_from_checkpoint()
+            self._restore_replay_buffer()
+
+    def _restore_model_from_checkpoint(self) -> None:
+        ckpt = tf.train.Checkpoint(
+            Q=self.Q, Q_target=self.Q_target, optimizer=self.optimizer
+        )
+        self.checkpoint_manager = tf.train.CheckpointManager(
+            ckpt, self.checkpoint_dir, max_to_keep=3
+        )
+        if self.checkpoint_manager.latest_checkpoint:
+            ckpt.restore(self.checkpoint_manager.latest_checkpoint)
+            print(
+                "Restored model weights from checkpoint:",
+                self.checkpoint_manager.latest_checkpoint,
+            )
+        else:
+            print(
+                "Initializing from scratch, no checkpoint found at dir:",
+                self.checkpoint_dir,
+            )
+
+    def _restore_replay_buffer(self) -> None:
+        if self.buffer_path.exists():
+            self.memory.restore(self.buffer_path)
+            print("Restored replay buffer from:", self.buffer_path)
+        else:
+            print(
+                "Replay buffer empty, no saved buffer found at:",
+                self.buffer_path,
+            )
 
     def reset_env(self) -> None:
         self._obs: npt.NDArray = self.env.reset()  # type: ignore
@@ -312,7 +351,6 @@ class QAgentInEnvironment:
         steps_per_epoch: int,
         batch_size: int,
     ) -> None:
-        self.optimizer = tf.keras.optimizers.Adam()
         total_step = 0
 
         for epoch in range(1, epochs + 1):
@@ -327,4 +365,11 @@ class QAgentInEnvironment:
                     if len(self.memory) > batch_size:
                         self.train_step(gamma, batch_size)
 
-            print(self.history.epoch_stats_string() + "\n")
+            print(self.history.epoch_stats_string())
+            if self.checkpoint_dir is not None:
+                assert hasattr(self, "checkpoint_manager")
+                assert hasattr(self, "buffer_path")
+                self.checkpoint_manager.save()
+                self.memory.save(self.buffer_path)
+                print("Saved checkpoint and replay buffer.")
+            print()
