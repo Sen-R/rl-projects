@@ -1,4 +1,5 @@
 import typing
+from pathlib import Path
 import pytest
 from numpy.testing import assert_array_equal, assert_almost_equal
 import numpy as np
@@ -188,6 +189,24 @@ class TestReplayBuffer:
         buf.add(Experience(1, 2, 3, 4, True))
         with pytest.raises(ValueError):
             buf.sample(2)
+
+    def test_save(self, tmp_path: Path) -> None:
+        buf = ReplayBuffer(maxlen=1)
+        buf.add(Experience(1, 2, 3, 4, True))
+        buf.save(tmp_path / "buffer.npz")
+        assert (tmp_path / "buffer.npz").exists()
+
+    def test_restore(self, tmp_path: Path) -> None:
+        buf = ReplayBuffer(maxlen=2)
+        buf.add(Experience(1, 2, 3, 4, True))
+        buf.save(tmp_path / "buffer.npz")
+        del buf
+
+        restored = ReplayBuffer.restore(tmp_path / "buffer.npz")
+        assert len(restored) == 1
+        assert restored[0] == Experience(1, 2, 3, 4, True)
+        assert restored._maxlen == 2
+        assert restored.cursor == 1
 
 
 @pytest.mark.parametrize(

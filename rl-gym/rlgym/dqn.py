@@ -1,4 +1,5 @@
 import typing
+import os
 from collections import namedtuple
 import gym
 import numpy as np
@@ -150,6 +151,34 @@ class ReplayBuffer:
             self._no[idx],
             self._t[idx],
         )
+
+    def save(self, filename: typing.Union[str, os.PathLike]) -> None:
+        np.savez_compressed(
+            filename,
+            maxlen=self._maxlen,
+            size=self.size,
+            cursor=self.cursor,
+            obs=self._o,
+            action=self._a,
+            reward=self._r,
+            next_obs=self._no,
+            terminated=self._t,
+        )
+
+    @classmethod
+    def restore(
+        cls, filename: typing.Union[str, os.PathLike]
+    ) -> "ReplayBuffer":
+        npz = np.load(filename)
+        buf = cls(maxlen=int(npz["maxlen"]))
+        buf.size = int(npz["size"])
+        buf.cursor = int(npz["cursor"])
+        buf._o = npz["obs"]
+        buf._a = npz["action"]
+        buf._r = npz["reward"]
+        buf._no = npz["next_obs"]
+        buf._t = npz["terminated"]
+        return buf
 
     def _init_one_array(self, el) -> npt.NDArray:
         return np.repeat([el], self._maxlen, axis=0)
