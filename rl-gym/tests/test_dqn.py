@@ -120,15 +120,6 @@ class TestEpsilonSchedule:
         assert_almost_equal(epsilon(step), expected)
 
 
-def test_experience() -> None:
-    e = Experience("obs", 3, 1.0, "new_obs", False)
-    assert e.obs == "obs"
-    assert e.action == 3
-    assert e.reward == 1.0
-    assert e.next_obs == "new_obs"
-    assert e.terminated is False
-
-
 class TestReplayBuffer:
     def test_initial_state(self) -> None:
         buf = ReplayBuffer(maxlen=2)
@@ -205,7 +196,7 @@ class TestReplayBuffer:
         restored = ReplayBuffer.restore(tmp_path / "buffer.npz")
         assert len(restored) == 1
         assert restored[0] == Experience(1, 2, 3, 4, True)
-        assert restored._maxlen == 2
+        assert restored.maxlen == 2
         assert restored.cursor == 1
 
 
@@ -234,7 +225,7 @@ def test_soft_update(alpha: float, expected: float) -> None:
 
 @pytest.fixture
 def agent(env: gym.Env) -> QAgentInEnvironment:
-    return QAgentInEnvironment(env, lambda: Q_builder(env), 10)
+    return QAgentInEnvironment(env, lambda: Q_builder(env), 10, epsilon=0.0)
 
 
 class TestQAgentInEnvironment:
@@ -248,15 +239,8 @@ class TestQAgentInEnvironment:
     def test_select_action(self, agent: QAgentInEnvironment) -> None:
         action_values = agent.Q(agent._obs[np.newaxis, :]).numpy().squeeze()
         best_action = np.argmax(action_values)
-        chosen_action = agent.select_action(epsilon=0.0)
+        chosen_action = agent.select_action()
         assert chosen_action == best_action
-
-    def test_collect_experience(self, agent: QAgentInEnvironment) -> None:
-        agent.collect_experience(epsilon=0.1)
-        assert len(agent.memory) == 1
-        exp = agent.memory[0]
-        assert agent._episode_step == 1
-        assert agent._episode_reward == exp.reward
 
     @pytest.mark.xfail
     def test_td_target(self, agent: QAgentInEnvironment) -> None:

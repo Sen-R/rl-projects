@@ -1,12 +1,12 @@
 import typing
 import os
 from pathlib import Path
-from collections import namedtuple
 import gym
 import numpy as np
 import numpy.typing as npt
 import tensorflow as tf
 from tqdm import trange  # type: ignore
+from .agents import Experience, AgentInEnvironment
 
 
 def _extract_env_obs_and_action_space_sizes(
@@ -78,44 +78,9 @@ class QLearningAgent:
         )
 
 
-class TrainingProgress:
-    def on_epoch_begin(self) -> None:
-        self._episode_rewards_this_epoch: typing.List[float] = []
-        self._episode_lengths_this_epoch: typing.List[int] = []
-
-    def on_episode_end(self, episode_length: int, total_reward: float) -> None:
-        self._episode_rewards_this_epoch.append(total_reward)
-        self._episode_lengths_this_epoch.append(episode_length)
-
-    def get_epoch_stats(self) -> typing.Dict[str, typing.Union[int, float]]:
-        return {
-            "num_episodes": len(self._episode_rewards_this_epoch),
-            "av_episode_length": float(
-                np.mean(self._episode_lengths_this_epoch)
-            ),
-            "av_reward_per_episode": float(
-                np.mean(self._episode_rewards_this_epoch)
-            ),
-        }
-
-    def epoch_stats_string(self) -> str:
-        stats = self.get_epoch_stats()
-        return " | ".join(
-            (
-                k + ": " + (f"{v:.2f}" if isinstance(v, float) else f"{v}")
-                for k, v in stats.items()
-            )
-        )
-
-
-Experience = namedtuple(
-    "Experience", ["obs", "action", "reward", "next_obs", "terminated"]
-)
-
-
 class ReplayBuffer:
     def __init__(self, maxlen: int):
-        self._maxlen = maxlen
+        self.maxlen = maxlen
         self.size = 0
         self.cursor = 0
 
@@ -125,11 +90,11 @@ class ReplayBuffer:
         else:
             self._add_another(experience)
 
-        if self.size < self._maxlen:
+        if self.size < self.maxlen:
             self.size += 1
-        self.cursor = (self.cursor + 1) % self._maxlen
+        self.cursor = (self.cursor + 1) % self.maxlen
 
-        assert self.size <= self._maxlen
+        assert self.size <= self.maxlen
         assert self.cursor <= self.size
 
     def sample(self, n: int) -> Experience:
@@ -156,7 +121,7 @@ class ReplayBuffer:
     def save(self, filename: typing.Union[str, os.PathLike]) -> None:
         np.savez_compressed(
             filename,
-            maxlen=self._maxlen,
+            maxlen=self.maxlen,
             size=self.size,
             cursor=self.cursor,
             obs=self._o,
@@ -182,7 +147,7 @@ class ReplayBuffer:
         return buf
 
     def _init_one_array(self, el) -> npt.NDArray:
-        return np.repeat([el], self._maxlen, axis=0)
+        return np.repeat([el], self.maxlen, axis=0)
 
     def _initialize_from_example(self, experience: Experience) -> None:
         assert self.size == 0  # private method, so can expect this
@@ -234,7 +199,7 @@ def soft_update(
     target.set_weights(new_weights)
 
 
-class QAgentInEnvironment:
+class QAgentInEnvironment(AgentInEnvironment):
     def __init__(
         self,
         env: gym.Env,
@@ -242,15 +207,16 @@ class QAgentInEnvironment:
         memory_size: int,
         target_update_alpha: float = 0.1,
         checkpoint_dir: typing.Optional[typing.Union[str, os.PathLike]] = None,
+        epsilon: float = 0.0,
     ):
-        self.env = env
+        super().__init__(env)
         self.Q = Q_builder()
         self.Q_target = Q_builder()
-        self.history = TrainingProgress()
         self.memory = ReplayBuffer(maxlen=memory_size)
         self.alpha = target_update_alpha
         self.optimizer = tf.keras.optimizers.Adam()
         self.checkpoint_dir = checkpoint_dir
+        self.epsilon = epsilon
 
         # Fully update Q_target to begin with (alpha=1.0)
         soft_update(target=self.Q_target, online=self.Q, alpha=1.0)
@@ -270,7 +236,9 @@ class QAgentInEnvironment:
             ckpt, self.checkpoint_dir, max_to_keep=3
         )
         if self.checkpoint_manager.latest_checkpoint:
-            ckpt.restore(self.checkpoint_manager.latest_checkpoint)
+            ckpt.restore(
+                self.checkpoint_manager.latest_checkpoint
+            ).expect_partial()
             print(
                 "Restored model weights from checkpoint:",
                 self.checkpoint_manager.latest_checkpoint,
@@ -291,36 +259,11 @@ class QAgentInEnvironment:
                 self.buffer_path,
             )
 
-    def reset_env(self) -> None:
-        self._obs: npt.NDArray = self.env.reset()  # type: ignore
-        self._episode_step = 0
-        self._episode_reward = 0.0
-
-    def select_action(self, epsilon: float) -> int:
+    def select_action(self) -> int:
         # TODO: deal with observations of other shapes (e.g. 2/3D)
         action_values = tf.squeeze(self.Q(self._obs.reshape([1, -1]))).numpy()
-        action = select_action_epsilon_greedily(action_values, epsilon)
+        action = select_action_epsilon_greedily(action_values, self.epsilon)
         return int(action)
-
-    def collect_experience(self, epsilon: float) -> None:
-        action = self.select_action(epsilon)
-        next_obs, reward, terminated, truncated, _ = self.env.step(
-            action
-        )  # type: ignore
-        self.memory.add(
-            Experience(self._obs, action, reward, next_obs, terminated)
-        )
-
-        self._episode_step += 1
-        self._episode_reward += reward
-
-        if terminated or truncated:
-            self.history.on_episode_end(
-                self._episode_step, self._episode_reward
-            )
-            self.reset_env()
-        else:
-            self._obs = next_obs
 
     def train_step(self, gamma: float, batch_size: int) -> None:
         # Sample batch of experience
@@ -358,9 +301,9 @@ class QAgentInEnvironment:
             with trange(steps_per_epoch, ascii=" =") as step_iter:
                 step_iter.set_description(f"Epoch {epoch:2d}/{epochs:2d}")
                 for step in step_iter:
-                    epsilon = epsilon_schedule(total_step)
-                    step_iter.set_postfix(epsilon=epsilon)
-                    self.collect_experience(epsilon)
+                    self.epsilon = epsilon_schedule(total_step)
+                    step_iter.set_postfix(epsilon=self.epsilon)
+                    self.memory.add(self.collect_experience())
                     total_step += 1
                     if len(self.memory) > batch_size:
                         self.train_step(gamma, batch_size)
@@ -373,3 +316,22 @@ class QAgentInEnvironment:
                 self.memory.save(self.buffer_path)
                 print("Saved checkpoint and replay buffer.")
             print()
+
+
+def mlp_q_agent_builder(
+    env: gym.Env,
+    hidden_layers: typing.Sequence[int],
+    memory_size: int,
+    target_update_alpha: float = 0.1,
+    checkpoint_dir: typing.Optional[typing.Union[str, os.PathLike]] = None,
+    epsilon: float = 0.0,
+) -> QAgentInEnvironment:
+    agent = QAgentInEnvironment(
+        env,
+        lambda: mlp_q_network(env, hidden_layers),
+        memory_size,
+        target_update_alpha,
+        checkpoint_dir,
+        epsilon,
+    )
+    return agent
