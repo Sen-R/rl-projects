@@ -204,16 +204,12 @@ class QAgentInEnvironment(AgentInEnvironment):
         self,
         env: gym.Env,
         Q_builder: typing.Callable[[], tf.keras.Model],
-        memory_size: int,
-        target_update_alpha: float = 0.1,
         checkpoint_dir: typing.Optional[typing.Union[str, os.PathLike]] = None,
         epsilon: float = 0.0,
     ):
         super().__init__(env)
         self.Q = Q_builder()
         self.Q_target = Q_builder()
-        self.memory = ReplayBuffer(maxlen=memory_size)
-        self.alpha = target_update_alpha
         self.optimizer = tf.keras.optimizers.Adam()
         self.checkpoint_dir = checkpoint_dir
         self.epsilon = epsilon
@@ -224,9 +220,7 @@ class QAgentInEnvironment(AgentInEnvironment):
 
         # Restore weights if necessary
         if self.checkpoint_dir is not None:
-            self.buffer_path = Path(self.checkpoint_dir) / "replay_buffer.npz"
             self._restore_model_from_checkpoint()
-            self._restore_replay_buffer()
 
     def _restore_model_from_checkpoint(self) -> None:
         ckpt = tf.train.Checkpoint(
@@ -249,15 +243,25 @@ class QAgentInEnvironment(AgentInEnvironment):
                 self.checkpoint_dir,
             )
 
-    def _restore_replay_buffer(self) -> None:
-        if self.buffer_path.exists():
-            self.memory.restore(self.buffer_path)
-            print("Restored replay buffer from:", self.buffer_path)
-        else:
-            print(
-                "Replay buffer empty, no saved buffer found at:",
-                self.buffer_path,
-            )
+    def _replay_buffer_save_path(self) -> Path:
+        assert self.checkpoint_dir is not None  # shouldn't be called if not
+        return Path(self.checkpoint_dir) / "replay_buffer.npz"
+
+    def _create_or_restore_replay_buffer(
+        self, memory_size: int
+    ) -> ReplayBuffer:
+        memory = ReplayBuffer(maxlen=memory_size)
+        if self.checkpoint_dir is not None:
+            buffer_path = self._replay_buffer_save_path()
+            if buffer_path.exists():
+                memory.restore(buffer_path)
+                print("Restored replay buffer from:", buffer_path)
+            else:
+                print(
+                    "Replay buffer empty, no saved buffer found at:",
+                    buffer_path,
+                )
+        return memory
 
     def select_action(self) -> int:
         # TODO: deal with observations of other shapes (e.g. 2/3D)
@@ -265,11 +269,14 @@ class QAgentInEnvironment(AgentInEnvironment):
         action = select_action_epsilon_greedily(action_values, self.epsilon)
         return int(action)
 
-    def train_step(self, gamma: float, batch_size: int) -> None:
+    def train_step(
+        self,
+        gamma: float,
+        experiences: Experience,
+        target_update_alpha: float,
+    ) -> None:
         # Sample batch of experience
-        obs, action, reward, next_obs, terminated = self.memory.sample(
-            batch_size
-        )
+        obs, action, reward, next_obs, terminated = experiences
 
         # Calculate TD error (squared) and its gradient wrt Q weights
         td_target = _td_target(
@@ -287,7 +294,9 @@ class QAgentInEnvironment(AgentInEnvironment):
         self.optimizer.apply_gradients(zip(grads, self.Q.trainable_weights))
 
         # Update target network using soft update
-        soft_update(target=self.Q_target, online=self.Q, alpha=self.alpha)
+        soft_update(
+            target=self.Q_target, online=self.Q, alpha=target_update_alpha
+        )
 
     def learn(
         self,
@@ -296,8 +305,11 @@ class QAgentInEnvironment(AgentInEnvironment):
         epochs: int,
         steps_per_epoch: int,
         batch_size: int,
+        memory_size: int,
+        target_update_alpha: float = 0.1,
     ) -> None:
         total_step = 0
+        memory = self._create_or_restore_replay_buffer(memory_size)
 
         for epoch in range(1, epochs + 1):
             self.history.on_epoch_begin()
@@ -306,17 +318,18 @@ class QAgentInEnvironment(AgentInEnvironment):
                 for step in step_iter:
                     self.epsilon = epsilon_schedule(total_step)
                     step_iter.set_postfix(epsilon=self.epsilon)
-                    self.memory.add(self.collect_experience())
+                    memory.add(self.collect_experience())
                     total_step += 1
-                    if len(self.memory) > batch_size:
-                        self.train_step(gamma, batch_size)
+                    if len(memory) > batch_size:
+                        exps = memory.sample(batch_size)
+                        self.train_step(gamma, exps, target_update_alpha)
 
             print(self.history.epoch_stats_string())
             if self.checkpoint_dir is not None:
                 assert hasattr(self, "checkpoint_manager")
                 assert hasattr(self, "buffer_path")
                 self.checkpoint_manager.save()
-                self.memory.save(self.buffer_path)
+                memory.save(self._replay_buffer_save_path())
                 print("Saved checkpoint and replay buffer.")
             print()
 
@@ -324,16 +337,12 @@ class QAgentInEnvironment(AgentInEnvironment):
 def mlp_q_agent_builder(
     env: gym.Env,
     hidden_layers: typing.Sequence[int],
-    memory_size: int,
-    target_update_alpha: float = 0.1,
     checkpoint_dir: typing.Optional[typing.Union[str, os.PathLike]] = None,
     epsilon: float = 0.0,
 ) -> QAgentInEnvironment:
     agent = QAgentInEnvironment(
         env,
         lambda: mlp_q_network(env, hidden_layers),
-        memory_size,
-        target_update_alpha,
         checkpoint_dir,
         epsilon,
     )

@@ -21,5 +21,4 @@ class TestAgentFactory:
         )
         assert isinstance(agent, QAgentInEnvironment)
         assert len(agent.Q.layers) == 3
-        assert agent.memory.maxlen == 10
         assert agent.epsilon == 0.1

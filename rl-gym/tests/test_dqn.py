@@ -225,12 +225,11 @@ def test_soft_update(alpha: float, expected: float) -> None:
 
 @pytest.fixture
 def agent(env: gym.Env) -> QAgentInEnvironment:
-    return QAgentInEnvironment(env, lambda: Q_builder(env), 10, epsilon=0.0)
+    return QAgentInEnvironment(env, lambda: Q_builder(env), epsilon=0.0)
 
 
 class TestQAgentInEnvironment:
     def test_initial_state(self, agent: QAgentInEnvironment) -> None:
-        assert len(agent.memory) == 0
         for w_t, w_o in zip(
             agent.Q_target.get_weights(), agent.Q.get_weights()
         ):

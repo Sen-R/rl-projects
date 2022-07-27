@@ -79,11 +79,15 @@ def train(
     print()
 
     tf.keras.backend.clear_session()  # clear up memory before training
-    agent = QAgentInEnvironment(
-        env, Q_builder, memory_size, target_update_alpha, checkpoint_dir
-    )
+    agent = QAgentInEnvironment(env, Q_builder, checkpoint_dir)
     agent.learn(
-        EpsilonSchedule(*epsilon), gamma, epochs, steps_per_epoch, batch_size
+        EpsilonSchedule(*epsilon),
+        gamma,
+        epochs,
+        steps_per_epoch,
+        batch_size,
+        memory_size,
+        target_update_alpha,
     )
 
 
