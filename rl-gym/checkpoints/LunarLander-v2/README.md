@@ -1,6 +1,6 @@
 # LunarLander checkpoint
 
-This is a checkpoint for a MLP DQN agent with `[32, 32]` hidden layers trained over 30,000 time steps.
+This is a checkpoint for a MLP DQN agent with `[32, 32]` hidden layers trained over 45,000 time steps.
 
 Training parameters:
 
