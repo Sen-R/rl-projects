@@ -277,7 +277,10 @@ class QAgentInEnvironment(AgentInEnvironment):
         )
         with tf.GradientTape() as tape:
             q_est = tf.gather(self.Q(obs), action, axis=1, batch_dims=1)
-            loss = tf.reduce_sum(tf.square(td_target - q_est))
+            td_error = td_target - q_est
+            loss = tf.reduce_sum(
+                tf.minimum(0.5 * tf.square(td_error), tf.abs(td_error))
+            )
         grads = tape.gradient(loss, self.Q.trainable_weights)
 
         # Update online network using SGD
