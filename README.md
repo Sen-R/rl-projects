@@ -4,4 +4,4 @@ Mini-projects on reinforcement learning topics.
 
 ## Contents
 
-* [rlgym](rlgym/README.md): training agents to solve OpenAI gym environments
+* [RL gym](rl-gym/README.md): training agents to solve OpenAI gym environments
