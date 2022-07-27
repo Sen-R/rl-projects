@@ -17,7 +17,7 @@ class TestAgentFactory:
 
     def test_make_q_agent(self, env: gym.Env) -> None:
         agent = agent_factory.create(
-            "dqn_mlp", env, hidden_layers=[32, 32], memory_size=10, epsilon=0.1
+            "dqn_mlp", env, hidden_layers=[32, 32], epsilon=0.1
         )
         assert isinstance(agent, QAgentInEnvironment)
         assert len(agent.Q.layers) == 3
