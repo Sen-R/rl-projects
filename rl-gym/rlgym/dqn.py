@@ -327,7 +327,6 @@ class QAgentInEnvironment(AgentInEnvironment):
             print(self.history.epoch_stats_string())
             if self.checkpoint_dir is not None:
                 assert hasattr(self, "checkpoint_manager")
-                assert hasattr(self, "buffer_path")
                 self.checkpoint_manager.save()
                 memory.save(self._replay_buffer_save_path())
                 print("Saved checkpoint and replay buffer.")
