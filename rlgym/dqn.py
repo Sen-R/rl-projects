@@ -250,17 +250,19 @@ class QAgentInEnvironment(AgentInEnvironment):
     def _create_or_restore_replay_buffer(
         self, memory_size: int
     ) -> ReplayBuffer:
-        memory = ReplayBuffer(maxlen=memory_size)
         if self.checkpoint_dir is not None:
             buffer_path = self._replay_buffer_save_path()
             if buffer_path.exists():
-                memory.restore(buffer_path)
+                memory = ReplayBuffer.restore(buffer_path)
+                assert len(memory) > 0
                 print("Restored replay buffer from:", buffer_path)
+                print(f"Contains {len(memory)} experiences.")
             else:
                 print(
                     "Replay buffer empty, no saved buffer found at:",
                     buffer_path,
                 )
+                memory = ReplayBuffer(maxlen=memory_size)
         return memory
 
     def select_action(self) -> int:
@@ -312,6 +314,7 @@ class QAgentInEnvironment(AgentInEnvironment):
         memory = self._create_or_restore_replay_buffer(memory_size)
 
         for epoch in range(1, epochs + 1):
+            print()
             self.history.on_epoch_begin()
             with trange(steps_per_epoch, ascii=" =") as step_iter:
                 step_iter.set_description(f"Epoch {epoch:2d}/{epochs:2d}")
@@ -330,7 +333,6 @@ class QAgentInEnvironment(AgentInEnvironment):
                 self.checkpoint_manager.save()
                 memory.save(self._replay_buffer_save_path())
                 print("Saved checkpoint and replay buffer.")
-            print()
 
 
 def mlp_q_agent_builder(
