@@ -6,7 +6,13 @@ Starter projects to train basic deep RL agents on benchmark environments.
 
 ## Getting started
 
-If you have poetry, you can get started by running `poetry install` and then `poetry shell`. Otherwise, install any missing dependencies in `pyproject.toml` in a suitably prepared virtual environment.
+If you have poetry, you can get started by running `poetry install`
+and then `poetry shell`. Note that you will first need
+[SWIG](https://swig.org) installed on your system to be able to
+install the Box2D Gym environments.
+
+Alternatively (e.g. on Colab), install any missing dependencies in
+`pyproject.toml` in a suitably prepared virtual environment.
 
 ## Examples
 
