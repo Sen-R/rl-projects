@@ -52,7 +52,7 @@ Try
 python -m scripts.enjoy \
   LunarLander-v2 \
   dqn_mlp \
-  --agent-config '{"hidden_layers": [32, 32], "checkpoint_dir": "checkpoints/LunarLander-v2"}' \
+  --agent-config '{"hidden_layers": [128, 128, 128], "checkpoint_dir": "checkpoints/LunarLander-v2"}' \
   --steps 1000
 ```
 
