@@ -66,18 +66,6 @@ class EpsilonSchedule:
         return max(self.start + step * self.slope, self.end)
 
 
-class QLearningAgent:
-    def __init__(self, q_network: tf.keras.Model):
-        self.Q = q_network
-
-    def select_action(
-        self, observation: npt.NDArray, epsilon: float = 0.0
-    ) -> npt.NDArray[np.int64]:
-        return select_action_epsilon_greedily(
-            self.Q(observation), epsilon=epsilon
-        )
-
-
 class ReplayBuffer:
     def __init__(self, maxlen: int):
         self.maxlen = maxlen
