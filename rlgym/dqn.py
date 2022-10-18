@@ -238,6 +238,7 @@ class QAgentInEnvironment(AgentInEnvironment):
     def _create_or_restore_replay_buffer(
         self, memory_size: int
     ) -> ReplayBuffer:
+        memory = ReplayBuffer(maxlen=memory_size)
         if self.checkpoint_dir is not None:
             buffer_path = self._replay_buffer_save_path()
             if buffer_path.exists():
@@ -250,7 +251,6 @@ class QAgentInEnvironment(AgentInEnvironment):
                     "Replay buffer empty, no saved buffer found at:",
                     buffer_path,
                 )
-                memory = ReplayBuffer(maxlen=memory_size)
         return memory
 
     def select_action(self) -> int:
