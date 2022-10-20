@@ -18,12 +18,12 @@ from rlgym.dqn import (
 
 @pytest.fixture
 def env() -> gym.Env:
-    return gym.make("CartPole-v1", new_step_api=True)
+    return gym.make("CartPole-v1")
 
 
 @pytest.fixture
 def sample_obs(env: gym.Env) -> np.ndarray:
-    sample_obs = env.reset()
+    sample_obs, _ = env.reset()
     assert isinstance(sample_obs, np.ndarray)
     return sample_obs[np.newaxis, :]
 

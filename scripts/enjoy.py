@@ -15,7 +15,7 @@ def enjoy(
 ) -> None:
     """Render an agent playing the given environment."""
 
-    env = gym.make(env_name, render_mode="human", new_step_api=True)
+    env = gym.make(env_name, render_mode="human")
     env.reset(seed=seed)
 
     print("Action space:", env.action_space)

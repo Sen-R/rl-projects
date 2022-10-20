@@ -1,51 +1,64 @@
-import typing
 import numpy as np
 import gym
 from gym.envs.registration import register
+
+
+def soft_bounding_penalty(
+    x: float, soft_edge: float, hard_edge: float, alpha: float
+) -> float:
+    """Imposes a soft bounding penalty up to `hard_edge`.
+
+    Output is zero below `soft_edge` and polynomially increases to
+    one at `hard_edge`, with the exponent set by `alpha`.
+    """
+    return (
+        np.clip((x - soft_edge) / (hard_edge - soft_edge), 0.0, 1.0) ** alpha
+    )
 
 
 class CartPoleDenseWrapper(gym.Wrapper):
     """
     Dense reward signal for CartPoleEnvironment.
 
-    Adds penalties for moving off-centre, off-vertical or for non-zero
-    translational or angular velocities.
-
-    Args:
-      reward_weights: tuple of form `[x_w, v_w, theta_w, omega_w]` that
-        is dotted with the absolute value of the state vector to form
-        the dense penalty signal described above.
+    Modifies the reward from original CartPole as follows:
+    - Soft penalty for veering too far from the centre
+    - Soft penalty for veering too far from vertical
+    - Penalty on angular velocity to guide agent to apply a torque to restore
+      balance (i.e. in opposite direction to angular displacement from
+      vertical)
     """
 
     def __init__(
         self,
         env: gym.Env,
-        reward_weights: typing.Tuple[float, float, float, float],
-        new_step_api: bool,
+        stuck_ops_max: int = 5,
     ) -> None:
-        super().__init__(env, new_step_api=new_step_api)
-        if len(reward_weights) != 4:
-            raise ValueError(
-                f"Reward weights should be length 4, got: {reward_weights}"
-            )
-        self._weights = np.array(reward_weights)
+        super().__init__(env)
 
     def step(self, action: int):
-        obs, reward, term, trunc, info = self.env.step(action)  # type: ignore
-        reward -= np.dot(self._weights, np.abs(obs))
+        # environment-specific constants
+        x_lim = 4.8
+        theta_lim = 0.2095
+
+        # reward shaping constants (could be parameterised in future)
+        alpha = 2.0
+        tip_recovery_aggressiveness = 4.0
+
+        obs, reward, term, trunc, info = self.env.step(action)
+        x, v, theta, omega = obs
+        target_omega = -tip_recovery_aggressiveness * theta
+        reward -= soft_bounding_penalty(abs(x), x_lim / 2.0, x_lim, alpha)
+        reward -= soft_bounding_penalty(
+            abs(theta), theta_lim / 2.0, theta_lim, alpha
+        )
+        reward -= (omega - target_omega) ** alpha
+
         return obs, reward, term, trunc, info
 
 
-_def_weights = (0.1, 0.1, 0.1, 0.1)
-
-
-def cartpole_dense(
-    reward_weights: typing.Tuple[float, float, float, float] = _def_weights,
-    new_step_api: bool = True,
-    **kwargs,
-) -> gym.Env:
-    env = gym.make("CartPole-v1", new_step_api=new_step_api, **kwargs)
-    env = CartPoleDenseWrapper(env, reward_weights, new_step_api=new_step_api)
+def cartpole_dense(**kwargs) -> gym.Env:
+    env = gym.make("CartPole-v1", **kwargs)
+    env = CartPoleDenseWrapper(env)
     return env
 
 

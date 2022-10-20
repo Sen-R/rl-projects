@@ -7,7 +7,7 @@ from rlgym import agent_factory
 
 @pytest.fixture
 def env() -> gym.Env:
-    return gym.make("CartPole-v1", new_step_api=True)
+    return gym.make("CartPole-v1")
 
 
 class TestAgentFactory:

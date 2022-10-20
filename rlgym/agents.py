@@ -56,7 +56,8 @@ class AgentInEnvironment(ABC):
         self.reset_env()
 
     def reset_env(self) -> None:
-        self._obs: npt.NDArray = self.env.reset()  # type: ignore
+        self._obs: npt.NDArray
+        self._obs, _ = self.env.reset()
         self._episode_step = 0
         self._episode_reward = 0.0
 
@@ -74,9 +75,7 @@ class AgentInEnvironment(ABC):
 
     def collect_experience(self) -> Experience:
         action = self.select_action()
-        next_obs, reward, terminated, truncated, _ = self.env.step(
-            action
-        )  # type: ignore
+        next_obs, reward, terminated, truncated, _ = self.env.step(action)
         experience = Experience(
             self._obs, action, reward, next_obs, terminated
         )

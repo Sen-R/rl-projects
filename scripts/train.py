@@ -69,7 +69,7 @@ def train(
     environment."""
 
     render_mode = "human" if render else None
-    env = gym.make(env_name, new_step_api=True, render_mode=render_mode)
+    env = gym.make(env_name, render_mode=render_mode)
     hidden_layers_list = _parse_hidden_layers(hidden_layers)
 
     def Q_builder() -> tf.keras.Model:

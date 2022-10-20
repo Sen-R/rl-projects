@@ -5,7 +5,7 @@ from rlgym.agents import RandomAgentInEnvironment, Experience
 
 @pytest.fixture
 def env() -> gym.Env:
-    return gym.make("MountainCar-v0", new_step_api=True)
+    return gym.make("MountainCar-v0")
 
 
 def test_experience() -> None:

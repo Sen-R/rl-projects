@@ -289,7 +289,7 @@ six = "*"
 
 [[package]]
 name = "grpcio"
-version = "1.49.1"
+version = "1.50.0"
 description = "HTTP/2-based RPC framework"
 category = "main"
 optional = false
@@ -299,11 +299,11 @@ python-versions = ">=3.7"
 six = ">=1.5.2"
 
 [package.extras]
-protobuf = ["grpcio-tools (>=1.49.1)"]
+protobuf = ["grpcio-tools (>=1.50.0)"]
 
 [[package]]
 name = "gym"
-version = "0.25.2"
+version = "0.26.2"
 description = "Gym: A universal API for reinforcement learning environments"
 category = "main"
 optional = false
@@ -320,14 +320,14 @@ swig = {version = ">=4.0.0,<5.0.0", optional = true, markers = "extra == \"box2d
 
 [package.extras]
 accept-rom-license = ["autorom[accept-rom-license] (>=0.4.2,<0.5.0)"]
-all = ["opencv-python (>=3.0)", "pytest (==7.0.1)", "mujoco (==2.2.0)", "pygame (==2.1.0)", "lz4 (>=3.1.0)", "ale-py (>=0.7.5,<0.8.0)", "mujoco_py (>=2.1,<2.2)", "imageio (>=2.14.1)", "swig (>=4.0.0,<5.0.0)", "matplotlib (>=3.0)", "box2d-py (==2.3.5)"]
-atari = ["ale-py (>=0.7.5,<0.8.0)"]
+all = ["pygame (==2.1.0)", "box2d-py (==2.3.5)", "opencv-python (>=3.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)", "swig (>=4.0.0,<5.0.0)", "lz4 (>=3.1.0)", "pytest (==7.0.1)", "mujoco_py (>=2.1,<2.2)", "mujoco (==2.2)", "ale-py (>=0.8.0,<0.9.0)", "imageio (>=2.14.1)"]
+atari = ["ale-py (>=0.8.0,<0.9.0)"]
 box2d = ["box2d-py (==2.3.5)", "pygame (==2.1.0)", "swig (>=4.0.0,<5.0.0)"]
 classic_control = ["pygame (==2.1.0)"]
-mujoco = ["mujoco (==2.2.0)", "imageio (>=2.14.1)"]
+mujoco = ["mujoco (==2.2)", "imageio (>=2.14.1)"]
 mujoco_py = ["mujoco_py (>=2.1,<2.2)"]
-other = ["lz4 (>=3.1.0)", "opencv-python (>=3.0)", "matplotlib (>=3.0)"]
-testing = ["opencv-python (>=3.0)", "mujoco (==2.2.0)", "pygame (==2.1.0)", "lz4 (>=3.1.0)", "mujoco_py (>=2.1,<2.2)", "imageio (>=2.14.1)", "swig (>=4.0.0,<5.0.0)", "matplotlib (>=3.0)", "box2d-py (==2.3.5)", "pytest (==7.0.1)"]
+other = ["lz4 (>=3.1.0)", "opencv-python (>=3.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)"]
+testing = ["pygame (==2.1.0)", "box2d-py (==2.3.5)", "swig (>=4.0.0,<5.0.0)", "opencv-python (>=3.0)", "matplotlib (>=3.0)", "moviepy (>=1.0.0)", "lz4 (>=3.1.0)", "mujoco_py (>=2.1,<2.2)", "mujoco (==2.2)", "imageio (>=2.14.1)", "pytest (==7.0.1)"]
 toy_text = ["pygame (==2.1.0)"]
 
 [[package]]
@@ -1121,7 +1121,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "flake8 
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.11"
-content-hash = "67c3a12f493db2880531513a4c2cf54c5acf4724c77ddefce699be27a8cee045"
+content-hash = "b746062942719a290278d1f9852729820bbf46567530b0cfe768f0b32398896c"
 
 [metadata.files]
 absl-py = []
