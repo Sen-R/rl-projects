@@ -7,6 +7,7 @@ import tensorflow as tf
 from tqdm import trange  # type: ignore
 from .agents import Experience, LearningAgent
 from .experiences import create_or_restore_replay_buffer
+from .learning_utils import soft_update
 
 
 def _extract_env_obs_and_action_space_sizes(
@@ -56,16 +57,6 @@ def select_action_epsilon_greedily(
     return np.where(explore, random_action, best_action)
 
 
-class EpsilonSchedule:
-    def __init__(self, start: float, rampdown_length: int, end: float):
-        self.start = start
-        self.end = end
-        self.slope = (end - start) / float(rampdown_length)
-
-    def __call__(self, step: int) -> float:
-        return max(self.start + step * self.slope, self.end)
-
-
 def _td_target(
     Q_target: typing.Callable[[npt.NDArray], tf.Tensor],
     Q_online: typing.Callable[[npt.NDArray], tf.Tensor],
@@ -79,21 +70,6 @@ def _td_target(
         Q_target(next_obs).numpy(), greedy_next_action, axis=1
     )
     return reward + gamma * (~terminated) * next_action_value
-
-
-def soft_update(
-    target: tf.keras.Model, online: tf.keras.Model, alpha: float
-) -> None:
-    """Soft updates a target network's weights towards online network weights.
-
-    `alpha` is the smoothing parameter. Zero corresponds to no update, one
-    corresponds to completely replacing the original weights.
-    """
-    new_weights = [
-        alpha * w_o + (1.0 - alpha) * w_t
-        for w_o, w_t in zip(online.get_weights(), target.get_weights())
-    ]
-    target.set_weights(new_weights)
 
 
 class QAgentInEnvironment(LearningAgent):

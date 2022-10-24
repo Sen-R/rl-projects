@@ -8,8 +8,8 @@ import tensorflow as tf  # noqa: E402
 from rlgym.dqn import (  # noqa: E402
     mlp_q_network,
     QAgentInEnvironment,
-    EpsilonSchedule,
 )
+from rlgym.learning_utils import EpsilonSchedule  # noqa: E402
 
 
 @click.command()
