@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
 from collections import namedtuple
 import typing
+import os
 import numpy.typing as npt
 import numpy as np
+import tensorflow as tf
 import gym
 
 
@@ -99,3 +101,30 @@ class RandomAgentInEnvironment(AgentInEnvironment):
 
     def select_action(self) -> int:
         return self.env.action_space.sample()
+
+
+class LearningAgent(AgentInEnvironment):
+    """Base class for agents that learn."""
+
+    def _restore_model_from_checkpoint(
+        self,
+        checkpoint_dir: typing.Union[str, os.PathLike],
+        **objects_to_checkpoint,
+    ) -> None:
+        ckpt = tf.train.Checkpoint(**objects_to_checkpoint)
+        self.checkpoint_manager = tf.train.CheckpointManager(
+            ckpt, checkpoint_dir, max_to_keep=3
+        )
+        if self.checkpoint_manager.latest_checkpoint:
+            ckpt.restore(
+                self.checkpoint_manager.latest_checkpoint
+            ).expect_partial()
+            print(
+                "Restored model weights from checkpoint:",
+                self.checkpoint_manager.latest_checkpoint,
+            )
+        else:
+            print(
+                "Initializing from scratch, no checkpoint found at dir:",
+                checkpoint_dir,
+            )

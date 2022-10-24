@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 import tensorflow as tf
 from tqdm import trange  # type: ignore
-from .agents import Experience, AgentInEnvironment
+from .agents import Experience, LearningAgent
 
 
 def _extract_env_obs_and_action_space_sizes(
@@ -187,7 +187,7 @@ def soft_update(
     target.set_weights(new_weights)
 
 
-class QAgentInEnvironment(AgentInEnvironment):
+class QAgentInEnvironment(LearningAgent):
     def __init__(
         self,
         env: gym.Env,
@@ -208,27 +208,11 @@ class QAgentInEnvironment(AgentInEnvironment):
 
         # Restore weights if necessary
         if self.checkpoint_dir is not None:
-            self._restore_model_from_checkpoint()
-
-    def _restore_model_from_checkpoint(self) -> None:
-        ckpt = tf.train.Checkpoint(
-            Q=self.Q, Q_target=self.Q_target, optimizer=self.optimizer
-        )
-        self.checkpoint_manager = tf.train.CheckpointManager(
-            ckpt, self.checkpoint_dir, max_to_keep=3
-        )
-        if self.checkpoint_manager.latest_checkpoint:
-            ckpt.restore(
-                self.checkpoint_manager.latest_checkpoint
-            ).expect_partial()
-            print(
-                "Restored model weights from checkpoint:",
-                self.checkpoint_manager.latest_checkpoint,
-            )
-        else:
-            print(
-                "Initializing from scratch, no checkpoint found at dir:",
+            self._restore_model_from_checkpoint(
                 self.checkpoint_dir,
+                Q=self.Q,
+                Q_target=self.Q_target,
+                optimizer=self.optimizer,
             )
 
     def _replay_buffer_save_path(self) -> Path:
