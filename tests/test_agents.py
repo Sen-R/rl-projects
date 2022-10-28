@@ -1,11 +1,5 @@
-import pytest
 import gym
 from rlgym.agents import RandomAgentInEnvironment, Experience
-
-
-@pytest.fixture
-def env() -> gym.Env:
-    return gym.make("MountainCar-v0")
 
 
 def test_experience() -> None:
@@ -18,14 +12,14 @@ def test_experience() -> None:
 
 
 class TestRandomAgentInEnvironment:
-    def test_functionality(self, env: gym.Env) -> None:
-        agent = RandomAgentInEnvironment(env)
+    def test_functionality(self, mc_env: gym.Env) -> None:
+        agent = RandomAgentInEnvironment(mc_env)
         sampled_actions = [agent.select_action() for _ in range(1000)]
         assert max(sampled_actions) == 2  # MountainCar has 3 actions
         assert min(sampled_actions) == 0
 
-    def test_collect_experience(self, env: gym.Env) -> None:
-        agent = RandomAgentInEnvironment(env)
+    def test_collect_experience(self, mc_env: gym.Env) -> None:
+        agent = RandomAgentInEnvironment(mc_env)
         exp = agent.collect_experience()
         assert isinstance(exp, Experience)
         assert agent._episode_step == 1

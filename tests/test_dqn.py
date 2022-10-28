@@ -1,53 +1,9 @@
-import typing
 import pytest
 from numpy.testing import assert_array_equal
 import numpy as np
-import tensorflow as tf
 import gym
-from rlgym.dqn import (
-    mlp_q_network,
-    select_action_epsilon_greedily,
-    QAgentInEnvironment,
-)
-
-
-@pytest.fixture
-def env() -> gym.Env:
-    return gym.make("CartPole-v1")
-
-
-@pytest.fixture
-def sample_obs(env: gym.Env) -> np.ndarray:
-    sample_obs, _ = env.reset()
-    assert isinstance(sample_obs, np.ndarray)
-    return sample_obs[np.newaxis, :]
-
-
-def Q_builder(env: gym.Env) -> typing.Callable[[], tf.keras.Model]:
-    return mlp_q_network(env, [3, 4])
-
-
-@pytest.fixture
-def Q(env: gym.Env) -> tf.keras.Model:
-    return Q_builder(env)
-
-
-class TestMLPQNetwork:
-    def test_maps_env_observations_to_valid_action_values(
-        self, env: gym.Env, Q: tf.keras.Model, sample_obs: np.ndarray
-    ) -> None:
-        sample_output = Q(sample_obs)
-        assert isinstance(env.action_space, gym.spaces.Discrete)
-        assert_array_equal(sample_output.shape, [1, env.action_space.n])
-
-    def test_hidden_layers_as_expected(self, Q: tf.keras.Model) -> None:
-        assert len(Q.layers) == 3
-        assert Q.layers[0].units == 3
-        assert Q.layers[1].units == 4
-
-    def test_default_is_linear_model(self, env: gym.Env) -> None:
-        linear_Q = mlp_q_network(env)
-        assert len(linear_Q.layers) == 1
+from rlgym.dqn import select_action_epsilon_greedily, QAgentInEnvironment
+from rlgym.networks import mlp_q_network
 
 
 class TestSelectActionEpsilonGreedily:
@@ -97,8 +53,10 @@ class TestSelectActionEpsilonGreedily:
 
 
 @pytest.fixture
-def agent(env: gym.Env) -> QAgentInEnvironment:
-    return QAgentInEnvironment(env, lambda: Q_builder(env), epsilon=0.0)
+def agent(cp_env: gym.Env) -> QAgentInEnvironment:
+    return QAgentInEnvironment(
+        cp_env, lambda: mlp_q_network(cp_env, [3, 4]), epsilon=0.0
+    )
 
 
 class TestQAgentInEnvironment:
