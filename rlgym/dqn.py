@@ -39,7 +39,7 @@ def _td_target(
     return reward + gamma * (~terminated) * next_action_value
 
 
-class QAgentInEnvironment(LearningAgent):
+class DQNAgent(LearningAgent):
     def __init__(
         self,
         env: gym.Env,

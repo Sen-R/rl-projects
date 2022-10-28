@@ -2,7 +2,7 @@ import pytest
 from numpy.testing import assert_array_equal
 import numpy as np
 import gym
-from rlgym.dqn import select_action_epsilon_greedily, QAgentInEnvironment
+from rlgym.dqn import select_action_epsilon_greedily, DQNAgent
 from rlgym.networks import mlp_q_network
 
 
@@ -53,33 +53,31 @@ class TestSelectActionEpsilonGreedily:
 
 
 @pytest.fixture
-def agent(cp_env: gym.Env) -> QAgentInEnvironment:
-    return QAgentInEnvironment(
-        cp_env, lambda: mlp_q_network(cp_env, [3, 4]), epsilon=0.0
-    )
+def agent(cp_env: gym.Env) -> DQNAgent:
+    return DQNAgent(cp_env, lambda: mlp_q_network(cp_env, [3, 4]), epsilon=0.0)
 
 
-class TestQAgentInEnvironment:
-    def test_initial_state(self, agent: QAgentInEnvironment) -> None:
+class TestDQNAgent:
+    def test_initial_state(self, agent: DQNAgent) -> None:
         for w_t, w_o in zip(
             agent.Q_target.get_weights(), agent.Q.get_weights()
         ):
             assert_array_equal(w_t, w_o)
 
-    def test_select_action(self, agent: QAgentInEnvironment) -> None:
+    def test_select_action(self, agent: DQNAgent) -> None:
         action_values = agent.Q(agent._obs[np.newaxis, :]).numpy().squeeze()
         best_action = np.argmax(action_values)
         chosen_action = agent.select_action()
         assert chosen_action == best_action
 
     @pytest.mark.xfail
-    def test_td_target(self, agent: QAgentInEnvironment) -> None:
+    def test_td_target(self, agent: DQNAgent) -> None:
         raise NotImplementedError
 
     @pytest.mark.xfail
-    def test_train_step(self, agent: QAgentInEnvironment) -> None:
+    def test_train_step(self, agent: DQNAgent) -> None:
         raise NotImplementedError
 
     @pytest.mark.xfail
-    def test_learn(self, agent: QAgentInEnvironment) -> None:
+    def test_learn(self, agent: DQNAgent) -> None:
         raise NotImplementedError

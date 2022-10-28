@@ -2,7 +2,7 @@ import typing
 import os
 import gym
 from .agents import AgentInEnvironment, RandomAgentInEnvironment
-from .dqn import QAgentInEnvironment
+from .dqn import DQNAgent
 from .networks import mlp_q_network
 
 
@@ -27,8 +27,8 @@ def mlp_q_agent_builder(
     hidden_layers: typing.Sequence[int],
     checkpoint_dir: typing.Optional[typing.Union[str, os.PathLike]] = None,
     epsilon: float = 0.0,
-) -> QAgentInEnvironment:
-    agent = QAgentInEnvironment(
+) -> DQNAgent:
+    agent = DQNAgent(
         env,
         lambda: mlp_q_network(env, hidden_layers),
         checkpoint_dir,

@@ -6,7 +6,7 @@ import gym
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # suppress tf noise on stderr
 import tensorflow as tf  # noqa: E402
 from rlgym.networks import mlp_q_network  # noqa: E402
-from rlgym.dqn import QAgentInEnvironment  # noqa: E402
+from rlgym.dqn import DQNAgent  # noqa: E402
 from rlgym.learning_utils import EpsilonSchedule  # noqa: E402
 
 
@@ -77,7 +77,7 @@ def train(
     print()
 
     tf.keras.backend.clear_session()  # clear up memory before training
-    agent = QAgentInEnvironment(env, Q_builder, checkpoint_dir)
+    agent = DQNAgent(env, Q_builder, checkpoint_dir)
     agent.learn(
         EpsilonSchedule(*epsilon),
         gamma,
